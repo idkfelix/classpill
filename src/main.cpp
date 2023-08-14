@@ -11,9 +11,12 @@
 #include <string.h>
 
 WiFiMulti wifiMulti;
+
 HTTPClient http;
 CookieJar cookieJar;
+
 TFT_eSPI tft = TFT_eSPI();
+TFT_eSprite spr = TFT_eSprite(&tft);
 
 JsonArray periods;
 DynamicJsonDocument docSorted(2048);
@@ -38,7 +41,7 @@ void setup() {
 
   // Define Networks here
   wifiMulti.addAP("Felix", "idkidkidk");
-  wifiMulti.addAP("DeathStar","coffeemarantz");
+  // wifiMulti.addAP("DeathStar","coffeemarantz");
   WiFi.setHostname("classpill");
 
   tft.fillScreen(TFT_BLACK);
@@ -143,24 +146,28 @@ void setup() {
     tft.fillScreen(TFT_BLACK);
     tft.drawCentreString("No WiFi found!",64,64,1);
 
-    DynamicJsonDocument doc(2048);
+    WiFi.softAP("classpill", "password");
+
     EepromStream eepromStream(0, 2048);
-    deserializeJson(doc, eepromStream);
-    periods = doc.as<JsonArray>();
+    deserializeJson(docSorted, eepromStream);
+    periods = docSorted.as<JsonArray>();
     tft.fillScreen(TFT_BLACK);
     tft.drawCentreString("Fetched Cached Data",64,64,1);
   }
+
   tft.fillScreen(TFT_BLACK);
+  spr.createSprite(128,128);
 }
 
 void loop(){
   if(periods.size() >0){
     for(JsonVariant period : periods) {
-      tft.print(period[0].as<const char*>());
-      tft.print(" ");
-      tft.print(period[2].as<const char*>());
-      tft.print(" ");
-      tft.println(period[3].as<const char*>());
+      spr.fillScreen(TFT_BLACK);
+      spr.setCursor(0, 0);
+      String ps = (String)period[0].as<const char*>()+" "+(String)period[2].as<const char*>()+" "+(String)period[3].as<const char*>();
+      spr.drawCentreString(ps,64,64,1);
+      spr.drawCentreString((String)period[1].as<const char*>(),64,32,2);
+      spr.pushSprite(0, 0);
       delay(500);
       while(digitalRead(9) == HIGH){}
     }
