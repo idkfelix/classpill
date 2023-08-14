@@ -8,14 +8,15 @@
 #include "TFT_eSPI.h"
 #include <EEPROM.h>
 #include <StreamUtils.h>
+#include <string.h>
 
 WiFiMulti wifiMulti;
 HTTPClient http;
 CookieJar cookieJar;
 TFT_eSPI tft = TFT_eSPI();
 
-
-JsonArray arr;
+JsonArray periods;
+DynamicJsonDocument docSorted(2048);
 
 void setup() {
   String userId = "";
@@ -37,6 +38,7 @@ void setup() {
 
   // Define Networks here
   wifiMulti.addAP("Felix", "idkidkidk");
+  wifiMulti.addAP("DeathStar","coffeemarantz");
   WiFi.setHostname("classpill");
 
   tft.fillScreen(TFT_BLACK);
@@ -62,7 +64,7 @@ void setup() {
       if(httpCodeA == HTTP_CODE_OK) {
         // Convert response to JSON
         String payload = http.getString();
-        DynamicJsonDocument doc(1024);
+        DynamicJsonDocument doc(2048);
         deserializeJson(doc, payload);
         // Get and print userId
         userId = doc["d"]["roles"][0]["userId"].as<String>();
@@ -85,21 +87,49 @@ void setup() {
 
       if(httpCodeB > 0) {
         if(httpCodeB == HTTP_CODE_OK) {
-        String payload = http.getString();
+          String payload = http.getString();
           // Filter and deserialise JSON
           StaticJsonDocument<64> filter;
           filter["d"]["data"][0]["topAndBottomLine"] = true;
-          DynamicJsonDocument doc(1024);
+          DynamicJsonDocument doc(2048);
           deserializeJson(doc, payload, DeserializationOption::Filter(filter));
-          arr = doc["d"]["data"].as<JsonArray>();
+          JsonArray arr = doc["d"]["data"].as<JsonArray>();
+          std::vector<String> values;
           // Print to serial
           for (JsonVariant period : arr) {
             String s = (String)period["topAndBottomLine"].as<const char*>();
-            Serial.println(s);
+            values.push_back(s);
+          }
+          // Sort periods
+          std::sort(values.begin(), values.end(), [](const String& a, const String& b) {
+            // Split each string at the '-' character and convert the second part to an integer
+            int aVal = a.substring(a.indexOf('-') + 1).toInt();
+            int bVal = b.substring(b.indexOf('-') + 1).toInt();
+
+            // Compare the integer values
+            return aVal < bVal;
+          });
+          // Save to new arr
+          periods = docSorted.to<JsonArray>();
+          for(const String& value : values) {
+            String periodString = value;
+            String delimiter = " - ";
+            DynamicJsonDocument docPeriod(2048);
+            JsonArray period = docPeriod.to<JsonArray>();
+
+            int delimiterIndex = periodString.indexOf(delimiter);
+            while (delimiterIndex >= 0) {
+              String substring = periodString.substring(0, delimiterIndex);
+              period.add(substring);
+              periodString = periodString.substring(delimiterIndex + delimiter.length());
+              delimiterIndex = periodString.indexOf(delimiter);
+            }
+            period.add(periodString);
+            periods.add(period);
           }
           // Save to memory
-          EepromStream eepromStream(0, 1024);
-          serializeJson(doc, eepromStream);
+          EepromStream eepromStream(0, 2048);
+          serializeJson(periods, eepromStream);
           eepromStream.flush();
         } else {
           Serial.printf("%i\n",httpCodeB);
@@ -113,15 +143,10 @@ void setup() {
     tft.fillScreen(TFT_BLACK);
     tft.drawCentreString("No WiFi found!",64,64,1);
 
-    DynamicJsonDocument doc(1024);
-    EepromStream eepromStream(0, 1024);
+    DynamicJsonDocument doc(2048);
+    EepromStream eepromStream(0, 2048);
     deserializeJson(doc, eepromStream);
-    arr = doc["d"]["data"].as<JsonArray>();
-    // Print to serial
-    for (JsonVariant period : arr) {
-      String s = (String)period["topAndBottomLine"].as<const char*>();
-      Serial.println(s);
-    }
+    periods = doc.as<JsonArray>();
     tft.fillScreen(TFT_BLACK);
     tft.drawCentreString("Fetched Cached Data",64,64,1);
   }
@@ -129,13 +154,17 @@ void setup() {
 }
 
 void loop(){
-  if(arr.size() >0){
-    for(JsonVariant period : arr) {
-      tft.println(period["topAndBottomLine"].as<const char*>());
-      tft.println("---------------------");
+  if(periods.size() >0){
+    for(JsonVariant period : periods) {
+      tft.print(period[0].as<const char*>());
+      tft.print(" ");
+      tft.print(period[2].as<const char*>());
+      tft.print(" ");
+      tft.println(period[3].as<const char*>());
+      delay(500);
+      while(digitalRead(9) == HIGH){}
     }
   } else {
-    tft.drawCentreString("No Period!",64,64,1);
+    tft.drawCentreString("No Periods!",64,64,1);
   }
-  while(1){}
 }
