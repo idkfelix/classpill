@@ -129,10 +129,10 @@ void setup() {
 }
 
 void loop(){
-  tft.setTextWrap(true, true);
   if(arr.size() >0){
     for(JsonVariant period : arr) {
       tft.println(period["topAndBottomLine"].as<const char*>());
+      tft.println("---------------------");
     }
   } else {
     tft.drawCentreString("No Period!",64,64,1);
