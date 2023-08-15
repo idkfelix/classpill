@@ -86,7 +86,7 @@ void setup() {
       tft.drawCentreString("Fetching Schedule...",64,64,1);
       http.begin("https://mullauna-vic.compass.education/Services/mobile.svc/GetScheduleLinesForDate");
       http.addHeader("Content-Type", "application/json");
-      int httpCodeB = http.POST("{\"userId\":\""+userId+"\",\"date\":\"14/08/2023 - 10:00 AM\"}");
+      int httpCodeB = http.POST("{\"userId\":\""+userId+"\",\"date\":\"15/08/2023 - 10:00 AM\"}");
 
       if(httpCodeB > 0) {
         if(httpCodeB == HTTP_CODE_OK) {
@@ -164,17 +164,23 @@ void loop(){
     for(JsonVariant period : periods) {
       spr.fillScreen(TFT_BLACK);
       spr.setCursor(0, 0);
+
       spr.setTextColor(TFT_BLACK);
       spr.fillRect(0,0,128,18,TFT_WHITE);
       spr.drawRightString(("Period "+(String)period[1].as<const char*>()),123,5,1);
-      if(!WiFi.isConnected()){
+      if(WiFi.isConnected()){
+        spr.drawString(WiFi.SSID(),5,5,1);
+      } else {
         spr.drawString("No Wifi",5,5,1);
       }
+
       spr.setTextColor(TFT_WHITE);
       spr.drawCentreString((String)period[0].as<const char*>(),64,34,2);
       spr.drawCentreString((String)period[2].as<const char*>(),64,54,2);
+      // /\<[^()]*\ /g
       spr.drawCentreString((String)period[4].as<const char*>(),64,74,2);
       spr.drawCentreString((String)period[3].as<const char*>(),64,94,2);
+
       spr.pushSprite(0, 0);
       delay(500);
       while(digitalRead(9) == HIGH){}
