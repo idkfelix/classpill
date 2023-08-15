@@ -164,9 +164,17 @@ void loop(){
     for(JsonVariant period : periods) {
       spr.fillScreen(TFT_BLACK);
       spr.setCursor(0, 0);
-      String ps = (String)period[0].as<const char*>()+" "+(String)period[2].as<const char*>()+" "+(String)period[3].as<const char*>();
-      spr.drawCentreString(ps,64,64,1);
-      spr.drawCentreString((String)period[1].as<const char*>(),64,32,2);
+      spr.setTextColor(TFT_BLACK);
+      spr.fillRect(0,0,128,18,TFT_WHITE);
+      spr.drawRightString(("Period "+(String)period[1].as<const char*>()),123,5,1);
+      if(!WiFi.isConnected()){
+        spr.drawString("No Wifi",5,5,1);
+      }
+      spr.setTextColor(TFT_WHITE);
+      spr.drawCentreString((String)period[0].as<const char*>(),64,34,2);
+      spr.drawCentreString((String)period[2].as<const char*>(),64,54,2);
+      spr.drawCentreString((String)period[4].as<const char*>(),64,74,2);
+      spr.drawCentreString((String)period[3].as<const char*>(),64,94,2);
       spr.pushSprite(0, 0);
       delay(500);
       while(digitalRead(9) == HIGH){}
