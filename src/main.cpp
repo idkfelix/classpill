@@ -11,6 +11,15 @@
 #include "driver/gpio.h"
 #include "TFT_eSPI.h"
 
+String subDomain = "mullauna-vic";
+String user = "cou0008";
+String pass = "Lion.8664";
+char* networks[][2] = {
+  {"SSID","password"},
+  {"Felix","idkidkidk"},
+  {"DeathStar","coffeemarantz"},
+};
+
 WiFiMulti wifiMulti;
 
 HTTPClient http;
@@ -32,8 +41,9 @@ void setup() {
   http.setCookieJar(&cookieJar);
   http.setReuse(true);
 
-  wifiMulti.addAP("Felix", "idkidkidk");
-  wifiMulti.addAP("DeathStar","coffeemarantz");
+  for(int i = 0; i< (sizeof networks / sizeof networks[0]); i++){
+    wifiMulti.addAP(networks[0][0],networks[0][1]);
+  }
   WiFi.setHostname("classpill");
 
   tft.fillScreen(TFT_BLACK);
@@ -46,9 +56,9 @@ void setup() {
     // Auth with Compass API
     tft.fillScreen(TFT_BLACK);
     tft.drawCentreString("Authenticating...",64,64,1);
-    http.begin("https://mullauna-vic.compass.education/services/admin.svc/AuthenticateUserCredentials");
+    http.begin("https://"+subDomain+".compass.education/services/admin.svc/AuthenticateUserCredentials");
     http.addHeader("Content-Type", "application/json");
-    int httpCodeA = http.POST("{\"username\":\"cou0008\",\"password\":\"Lion.8664\"}");
+    int httpCodeA = http.POST("{\"username\":\""+user+"\",\"password\":\""+pass+"\"}");
 
     if(httpCodeA > 0) {
       if(httpCodeA == HTTP_CODE_OK) {
@@ -69,9 +79,9 @@ void setup() {
       // Fetch Schedule Data
       tft.fillScreen(TFT_BLACK);
       tft.drawCentreString("Fetching Schedule...",64,64,1);
-      http.begin("https://mullauna-vic.compass.education/Services/mobile.svc/GetScheduleLinesForDate");
+      http.begin("https://"+subDomain+".compass.education/Services/mobile.svc/GetScheduleLinesForDate");
       http.addHeader("Content-Type", "application/json");
-      int httpCodeB = http.POST("{\"userId\":\""+userId+"\",\"date\":\"15/08/2023 - 10:00 AM\"}");
+      int httpCodeB = http.POST("{\"userId\":\""+userId+"\",\"date\":\"16/08/2023 - 10:00 AM\"}");
 
       if(httpCodeB > 0) {
         if(httpCodeB == HTTP_CODE_OK) {
@@ -144,7 +154,9 @@ void setup() {
 
 void loop(){
   if(periods.size() >0){
-    for(JsonVariant period : periods) {
+    int i = 0;
+    while(1) {
+      JsonVariant period = periods[i];
       spr.fillScreen(TFT_BLACK);
       spr.setCursor(0, 0);
 
@@ -164,8 +176,17 @@ void loop(){
       spr.drawCentreString((String)period[3].as<const char*>(),64,94,2);
 
       spr.pushSprite(0, 0);
+
       delay(500);
-      while(digitalRead(9) == HIGH){}
+      while((digitalRead(9) == HIGH)&&(digitalRead(21) == HIGH)){} // Do Nothing until btn press
+      if(digitalRead(9) != HIGH){
+        if(i==(periods.size()-1)) i=0;
+        else i++;
+      }
+      if(digitalRead(21) != HIGH){
+        if(i==0) i=(periods.size()-1);
+        else i--;
+      }
     }
   } else {
     tft.drawCentreString("No Periods!",64,64,1);
