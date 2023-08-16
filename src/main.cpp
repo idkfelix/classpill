@@ -14,10 +14,10 @@
 String subDomain = "mullauna-vic";
 String user = "cou0008";
 String pass = "Lion.8664";
-char* networks[][2] = {
+String networks[][2] = {
   {"SSID","password"},
   {"Felix","idkidkidk"},
-  {"DeathStar","coffeemarantz"},
+  {"DeathStar","coffeemarantz"}
 };
 
 WiFiMulti wifiMulti;
@@ -30,6 +30,7 @@ TFT_eSprite spr = TFT_eSprite(&tft);
 
 JsonArray periods;
 DynamicJsonDocument docSorted(2048);
+String date = "";
 
 void setup() {
   String userId = "";
@@ -42,9 +43,10 @@ void setup() {
   http.setReuse(true);
 
   for(int i = 0; i< (sizeof networks / sizeof networks[0]); i++){
-    wifiMulti.addAP(networks[0][0],networks[0][1]);
+    wifiMulti.addAP(networks[0][0].c_str(),networks[0][1].c_str());
   }
-  WiFi.setHostname("classpill");
+  wifiMulti.addAP("Felix","idkidkidk");
+  WiFi.setHostname("class.pill");
 
   tft.fillScreen(TFT_BLACK);
   tft.drawCentreString("Connecting Wifi...",64,64,1);
@@ -58,6 +60,8 @@ void setup() {
     tft.drawCentreString("Authenticating...",64,64,1);
     http.begin("https://"+subDomain+".compass.education/services/admin.svc/AuthenticateUserCredentials");
     http.addHeader("Content-Type", "application/json");
+    const char* headerNames[] = { "date" };
+    http.collectHeaders(headerNames, sizeof(headerNames)/sizeof(headerNames[0]));
     int httpCodeA = http.POST("{\"username\":\""+user+"\",\"password\":\""+pass+"\"}");
 
     if(httpCodeA > 0) {
@@ -67,6 +71,28 @@ void setup() {
         deserializeJson(doc, payload);
         userId = doc["d"]["roles"][0]["userId"].as<String>();
         Serial.printf("User ID: %s\n",userId);
+        String indate = http.header("date");
+        char s_month[5];
+        int day, year;
+        const String months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+        if (indate.length() > 0) {
+          int n = indate.length();
+          char date_array[n+1];
+          strcpy(date_array, indate.c_str());
+          sscanf(date_array, "%*s %d %s %d %*s", &day, s_month, &year);
+          int month = 0;
+          for(int i=0; i<12; i++) {
+            if(months[i] == String(s_month)) {
+              month = i+1;
+              break;
+            }
+          }
+
+          char output[11];
+          sprintf(output, "%02d/%02d/%04d", day, month, year);
+          date = output;
+        }
       } else {
         Serial.printf("%i\n",httpCodeA);
       }
@@ -81,7 +107,7 @@ void setup() {
       tft.drawCentreString("Fetching Schedule...",64,64,1);
       http.begin("https://"+subDomain+".compass.education/Services/mobile.svc/GetScheduleLinesForDate");
       http.addHeader("Content-Type", "application/json");
-      int httpCodeB = http.POST("{\"userId\":\""+userId+"\",\"date\":\"16/08/2023 - 10:00 AM\"}");
+      int httpCodeB = http.POST("{\"userId\":\""+userId+"\",\"date\":\""+date+" - 10:00 AM\"}");
 
       if(httpCodeB > 0) {
         if(httpCodeB == HTTP_CODE_OK) {
@@ -151,6 +177,8 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   spr.createSprite(128,128);
 }
+
+
 
 void loop(){
   if(periods.size() >0){
