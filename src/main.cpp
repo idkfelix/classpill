@@ -3,61 +3,115 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <HTTPClient.h>
-
 #include <EEPROM.h>
 #include <StreamUtils.h>
+#include "rm67162.h"
+#include <TFT_eSPI.h>
+#include "ani.h"
 
-#include "esp_rom_gpio.h"
-#include "driver/gpio.h"
-#include "TFT_eSPI.h"
+#define WIDTH  536
+#define HEIGHT 240
 
 String subDomain = "mullauna-vic";
 String user = "cou0008";
 String pass = "Lion.8664";
 String networks[][2] = {
-  {"SSID","password"},
   {"Felix","idkidkidk"},
   {"DeathStar","coffeemarantz"}
 };
 
 WiFiMulti wifiMulti;
 
-HTTPClient http;
-CookieJar cookieJar;
+String date = "";
+JsonArray periods;
+DynamicJsonDocument docPeriods(2048);
+DynamicJsonDocument userData(2048);
 
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite spr = TFT_eSprite(&tft);
 
-JsonArray periods;
-DynamicJsonDocument docSorted(2048);
-String date = "";
+void fetchData();
 
-void setup() {
+void setup(){
+  Serial.begin(115200);
+  pinMode(0,INPUT_PULLUP);
+  pinMode(21,INPUT_PULLUP);
+  EEPROM.begin(4096);
+  rm67162_init();
+  lcd_setRotation(1);
+  spr.createSprite(WIDTH, HEIGHT);
+  spr.setSwapBytes(1);
+
+  for(int i = 0; i< (sizeof networks / sizeof networks[0]); i++){
+    wifiMulti.addAP(networks[i][0].c_str(),networks[i][1].c_str());
+  } 
+
+  spr.fillSprite(TFT_BLACK);
+  spr.setTextColor(TFT_WHITE);
+  spr.drawCentreString("Loading...",(WIDTH/2),(HEIGHT/2),4);
+  lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
+
+  fetchData();
+}
+
+int i = 0;
+int n = 0;
+void loop(){
+  if(periods.size() >0){
+    JsonVariant period = periods[i];
+    spr.fillSprite(TFT_BLACK);
+
+    spr.pushImage((WIDTH-112),70,102,160,ani[n]);
+
+    spr.drawRoundRect(10,10,(WIDTH-20),40,5,TFT_WHITE);
+    spr.drawRoundRect(10,60,150,(HEIGHT-70),5,TFT_WHITE);
+    spr.drawRoundRect(170,60,(WIDTH-180),(HEIGHT-70),5,TFT_WHITE);
+
+    spr.setTextColor(0x2C3C);
+    spr.drawString((String)userData["reportName"].as<const char*>(),20,20,4);
+
+    // if(WiFi.SSID()) spr.drawString(WiFi.SSID(),20,20,4);
+    // else spr.drawString("No WiFi",20,20,4);
+
+    spr.setTextColor(TFT_WHITE);
+    spr.drawCentreString((String)period[0].as<const char*>(),(WIDTH/2),(HEIGHT/2-40),4);
+    spr.drawCentreString((String)period[2].as<const char*>(),(WIDTH/2),(HEIGHT/2-15),4);
+    spr.drawCentreString((String)period[4].as<const char*>(),(WIDTH/2),(HEIGHT/2+15),4);
+    spr.drawCentreString((String)period[3].as<const char*>(),(WIDTH/2),(HEIGHT/2+40),4);
+
+    lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
+
+    delay(150);
+    if(digitalRead(0) == HIGH){
+      if(i==0) i=(periods.size()-1);
+      else i--;
+    }
+    if(digitalRead(21) == HIGH){
+      if(i==(periods.size()-1)) i=0;
+      else i++;
+    }
+
+    n++;
+    if(n==45) n=0;
+  } else {
+    spr.fillSprite(TFT_BLACK);
+    spr.drawCentreString("No Periods!",(WIDTH/2),(HEIGHT/2),4);
+    lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
+  }
+}
+
+void fetchData(){
   String userId = "";
 
-  Serial.begin(115200);
-  tft.init();
-  tft.setRotation(3);
-  EEPROM.begin(1000);
+  HTTPClient http;
+  CookieJar cookieJar;
+
   http.setCookieJar(&cookieJar);
   http.setReuse(true);
 
-  for(int i = 0; i< (sizeof networks / sizeof networks[0]); i++){
-    wifiMulti.addAP(networks[0][0].c_str(),networks[0][1].c_str());
-  }
-  wifiMulti.addAP("Felix","idkidkidk");
-  WiFi.setHostname("class.pill");
-
-  tft.fillScreen(TFT_BLACK);
-  tft.drawCentreString("Connecting Wifi...",64,64,1);
-
   if(wifiMulti.run() == WL_CONNECTED) {
-    tft.fillScreen(TFT_BLACK);
-    tft.drawCentreString("Wifi Connected!",64,64,1);
-
+    Serial.println(WiFi.localIP());
     // Auth with Compass API
-    tft.fillScreen(TFT_BLACK);
-    tft.drawCentreString("Authenticating...",64,64,1);
     http.begin("https://"+subDomain+".compass.education/services/admin.svc/AuthenticateUserCredentials");
     http.addHeader("Content-Type", "application/json");
     const char* headerNames[] = { "date" };
@@ -91,7 +145,7 @@ void setup() {
 
           char output[11];
           sprintf(output, "%02d/%02d/%04d", day, month, year);
-          date = output;
+          date = (String)output;
         }
       } else {
         Serial.printf("%i\n",httpCodeA);
@@ -103,8 +157,6 @@ void setup() {
 
     if(httpCodeA == HTTP_CODE_OK) {
       // Fetch Schedule Data
-      tft.fillScreen(TFT_BLACK);
-      tft.drawCentreString("Fetching Schedule...",64,64,1);
       http.begin("https://"+subDomain+".compass.education/Services/mobile.svc/GetScheduleLinesForDate");
       http.addHeader("Content-Type", "application/json");
       int httpCodeB = http.POST("{\"userId\":\""+userId+"\",\"date\":\""+date+" - 10:00 AM\"}");
@@ -128,7 +180,7 @@ void setup() {
             int bVal = b.substring(b.indexOf('-') + 1).toInt();
             return aVal < bVal;
           });
-          periods = docSorted.to<JsonArray>();
+          periods = docPeriods.to<JsonArray>();
 
           for(const String& value : values) {
             String periodString = value;
@@ -160,63 +212,41 @@ void setup() {
         Serial.printf("%s\n", http.errorToString(httpCodeB).c_str());
       }
       http.end();
-    }
-  } else {
-    tft.fillScreen(TFT_BLACK);
-    tft.drawCentreString("No WiFi found!",64,64,1);
 
-    WiFi.softAP("classpill", "password");
+      // Fetch UserData
+      http.begin("https://"+subDomain+".compass.education/services/mobile.svc/GetMobilePersonalDetails");
+      http.addHeader("Content-Type", "application/json");
+      int httpCodeC = http.POST("{\"userId\":\""+userId+"\"}");
 
-    EepromStream eepromStream(0, 2048);
-    deserializeJson(docSorted, eepromStream);
-    periods = docSorted.as<JsonArray>();
-    tft.fillScreen(TFT_BLACK);
-    tft.drawCentreString("Fetched Cached Data",64,64,1);
-  }
+      if(httpCodeC > 0) {
+        if(httpCodeC == HTTP_CODE_OK) {
+          String payload = http.getString();
+          StaticJsonDocument<64> filter;
+          filter["d"]["data"]["displayCode"] = true;
+          filter["d"]["data"]["reportName"] = true;
+          filter["d"]["data"]["formGroup"] = true;
+          filter["d"]["data"]["school"]["Name"] = true;
+          DynamicJsonDocument doc(2048);
+          deserializeJson(doc, payload, DeserializationOption::Filter(filter));
+          userData = doc["d"]["data"].as<JsonVariant>();
 
-  tft.fillScreen(TFT_BLACK);
-  spr.createSprite(128,128);
-}
-
-
-
-void loop(){
-  if(periods.size() >0){
-    int i = 0;
-    while(1) {
-      JsonVariant period = periods[i];
-      spr.fillScreen(TFT_BLACK);
-      spr.setCursor(0, 0);
-
-      spr.setTextColor(TFT_BLACK);
-      spr.fillRect(0,0,128,18,TFT_WHITE);
-      spr.drawRightString((String)period[1].as<const char*>(),123,5,1);
-      if(WiFi.isConnected()){
-        spr.drawString(WiFi.SSID(),5,5,1);
+          EepromStream eepromStream(2048, 2048);
+          serializeJson(periods, eepromStream);
+          eepromStream.flush();
+        } else {
+          Serial.printf("%i\n",httpCodeC);
+        }
       } else {
-        spr.drawString("No Wifi",5,5,1);
+        Serial.printf("%s\n", http.errorToString(httpCodeC).c_str());
       }
-
-      spr.setTextColor(TFT_WHITE);
-      spr.drawCentreString((String)period[0].as<const char*>(),64,34,2);
-      spr.drawCentreString((String)period[2].as<const char*>(),64,54,2);
-      spr.drawCentreString((String)period[4].as<const char*>(),64,74,2);
-      spr.drawCentreString((String)period[3].as<const char*>(),64,94,2);
-
-      spr.pushSprite(0, 0);
-
-      delay(500);
-      while((digitalRead(9) == HIGH)&&(digitalRead(21) == HIGH)){} // Do Nothing until btn press
-      if(digitalRead(9) != HIGH){
-        if(i==(periods.size()-1)) i=0;
-        else i++;
-      }
-      if(digitalRead(21) != HIGH){
-        if(i==0) i=(periods.size()-1);
-        else i--;
-      }
+      http.end();
     }
   } else {
-    tft.drawCentreString("No Periods!",64,64,1);
+    EepromStream eepromStream(0, 2048);
+    deserializeJson(docPeriods, eepromStream);
+    periods = docPeriods.as<JsonArray>();
+
+    EepromStream eepromStreamA(0, 2048);
+    deserializeJson(userData, eepromStreamA);
   }
 }
