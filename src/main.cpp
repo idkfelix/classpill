@@ -23,7 +23,6 @@ String networks[][2] = {
 
 WiFiMulti wifiMulti;
 
-String date = "";
 JsonArray periods;
 DynamicJsonDocument docPeriods(2048);
 DynamicJsonDocument userData(2048);
@@ -56,39 +55,60 @@ void setup(){
 }
 
 int i = 0;
-int n = 0;
+// int n = 0;
 void loop(){
   if(periods.size() >0){
     JsonVariant period = periods[i];
     spr.fillSprite(TFT_BLACK);
 
-    spr.pushImage(55,65,102,160,ani[n]);
+    // Boxes
+    spr.drawRoundRect(0,0,(WIDTH),40,5,TFT_WHITE);
+    spr.drawRoundRect(0,50,150,(HEIGHT-50),5,TFT_WHITE);
+    spr.drawRoundRect(160,50,(WIDTH-160),(HEIGHT-50),5,TFT_WHITE);
 
-    spr.drawRoundRect(10,10,(WIDTH-20),40,5,TFT_WHITE);
-    spr.drawRoundRect(10,60,150,(HEIGHT-70),5,TFT_WHITE);
-    spr.drawRoundRect(170,60,(WIDTH-180),(HEIGHT-70),5,TFT_WHITE);
+    // Top Bar
+    spr.setTextColor(TFT_WHITE);
+    spr.setFreeFont(FF22);
+    spr.drawString((String)userData["reportName"].as<const char*>(),10,10,4);
+    spr.drawRightString((String)period[0].as<const char*>()+" - "+(String)userData["date"].as<const char*>(),(WIDTH-10),10,4);
+
+    // Side Bar
+    spr.setTextColor(0x2C3C);
+    spr.setFreeFont(FF22);
+    spr.drawString("Network",10,60,4);
+    spr.setTextColor(TFT_WHITE);
+    spr.setFreeFont(FF17);
+    if(WiFi.isConnected()) spr.drawString(WiFi.SSID(),10,85,4);
+    else spr.drawString("No WiFi",10,85,4);
 
     spr.setTextColor(0x2C3C);
-    spr.drawString((String)userData["reportName"].as<const char*>(),20,20,4);
-
-    // if(WiFi.SSID()) spr.drawString(WiFi.SSID(),20,20,4);
-    // else spr.drawString("No WiFi",20,20,4);
-
-    spr.setTextColor(TFT_WHITE);
-    spr.setFreeFont(FF23);
-    spr.drawString((String)period[2].as<const char*>(),180,70,GFXFF);
-    spr.drawRightString((String)period[1].as<const char*>(),(WIDTH-20),70,GFXFF);
     spr.setFreeFont(FF22);
-    spr.drawString((String)period[0].as<const char*>(),180,110,GFXFF);
+    spr.drawString("IP Address",10,120,4);
+    spr.setTextColor(TFT_WHITE);
+    spr.setFreeFont(FF17);
+    if(WiFi.isConnected()) spr.drawString(WiFi.localIP().toString(),10,145,4);
+    else spr.drawString("No IP",10,145,4);
+
+    spr.setTextColor(0x2C3C);
+    spr.setFreeFont(FF22);
+    spr.drawString("User Code",10,180,4);
+    spr.setTextColor(TFT_WHITE);
+    spr.setFreeFont(FF17);
+    spr.drawString((String)userData["displayCode"].as<const char*>(),10,205,4);
+
+    // Main Content
+    spr.setTextColor(0x2C3C);
+    spr.setFreeFont(FF24);
+    spr.drawString((String)period[2].as<const char*>(),180,70,GFXFF);
+    spr.setTextColor(TFT_WHITE);
+    spr.drawRightString((String)period[1].as<const char*>(),(WIDTH-20),70,GFXFF);
+    spr.setFreeFont(FF23);
+    spr.drawString("Room: "+(String)period[3].as<const char*>(),180,130,GFXFF);
+    spr.drawString("Teacher: "+(String)period[4].as<const char*>(),180,180,GFXFF);
 
     lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
 
-    delay(75);
-    n++;
-    if(n==45) n=0;
-    spr.pushImage(55,65,102,160,ani[n]);
-    lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
-    delay(75);
+    delay(150);
 
     if(digitalRead(21) == HIGH){
       if(i==0) i=(periods.size()-1);
@@ -98,9 +118,6 @@ void loop(){
       if(i==(periods.size()-1)) i=0;
       else i++;
     }
-
-    n++;
-    if(n==45) n=0;
   } else {
     spr.fillSprite(TFT_BLACK);
     spr.drawCentreString("No Periods!",(WIDTH/2),(HEIGHT/2),4);
@@ -110,6 +127,7 @@ void loop(){
 
 void fetchData(){
   String userId = "";
+  String date = "";
 
   HTTPClient http;
   CookieJar cookieJar;
@@ -232,15 +250,13 @@ void fetchData(){
           StaticJsonDocument<64> filter;
           filter["d"]["data"]["displayCode"] = true;
           filter["d"]["data"]["reportName"] = true;
-          filter["d"]["data"]["formGroup"] = true;
-          filter["d"]["data"]["school"]["Name"] = true;
           DynamicJsonDocument doc(2048);
           deserializeJson(doc, payload, DeserializationOption::Filter(filter));
           userData = doc["d"]["data"].as<JsonVariant>();
-
-          EepromStream eepromStream(2048, 2048);
-          serializeJson(periods, eepromStream);
-          eepromStream.flush();
+          userData["date"] = date;
+          EepromStream eepromStreamA(2048, 2048);
+          serializeJson(userData, eepromStreamA);
+          eepromStreamA.flush();
         } else {
           Serial.printf("%i\n",httpCodeC);
         }
