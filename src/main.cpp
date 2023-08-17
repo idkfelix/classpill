@@ -7,11 +7,14 @@
 #include <StreamUtils.h>
 #include "rm67162.h"
 #include <TFT_eSPI.h>
-#include "ani.h"
 #include "Free_Fonts.h" 
+#include "time.h"
 
 #define WIDTH  536
 #define HEIGHT 240
+
+#define ACCENT 0x2C3C
+// #define ACCENT 0x4682
 
 String subDomain = "mullauna-vic";
 String user = "cou0008";
@@ -76,7 +79,7 @@ void loop(){
     spr.drawRightString((String)period[0].as<const char*>()+" - "+(String)userData["date"].as<const char*>(),(WIDTH-10),10,GFXFF);
 
     // Side Bar
-    spr.setTextColor(0x2C3C);
+    spr.setTextColor(ACCENT);
     spr.setFreeFont(FF22);
     spr.drawString("Network",10,60,GFXFF);
     spr.setTextColor(TFT_WHITE);
@@ -84,7 +87,7 @@ void loop(){
     if(WiFi.isConnected()) spr.drawString(WiFi.SSID(),10,85,GFXFF);
     else spr.drawString("No WiFi",10,85,GFXFF);
 
-    spr.setTextColor(0x2C3C);
+    spr.setTextColor(ACCENT);
     spr.setFreeFont(FF22);
     spr.drawString("IP Address",10,120,GFXFF);
     spr.setTextColor(TFT_WHITE);
@@ -92,7 +95,7 @@ void loop(){
     if(WiFi.isConnected()) spr.drawString(WiFi.localIP().toString(),10,145,GFXFF);
     else spr.drawString("No IP",10,145,GFXFF);
 
-    spr.setTextColor(0x2C3C);
+    spr.setTextColor(ACCENT);
     spr.setFreeFont(FF22);
     spr.drawString("User Code",10,180,GFXFF);
     spr.setTextColor(TFT_WHITE);
@@ -100,7 +103,7 @@ void loop(){
     spr.drawString((String)userData["displayCode"].as<const char*>(),10,205,GFXFF);
 
     // Main Content
-    spr.setTextColor(0x2C3C);
+    spr.setTextColor(ACCENT);
     spr.setFreeFont(FF24);
     spr.drawString((String)period[2].as<const char*>(),180,70,GFXFF);
     spr.setTextColor(TFT_WHITE);
@@ -139,12 +142,16 @@ void fetchData(){
   http.setReuse(true);
 
   if(wifiMulti.run() == WL_CONNECTED) {
-    Serial.println(WiFi.localIP());
+    configTime(36000,36000,"au.pool.ntp.org");
+    struct tm timeinfo;
+    char timeString[50];
+    getLocalTime(&timeinfo);
+    strftime(timeString, sizeof(timeString), "%d/%m/%Y", &timeinfo);
+    date = timeString;
+    
     // Auth with Compass API
     http.begin("https://"+subDomain+".compass.education/services/admin.svc/AuthenticateUserCredentials");
     http.addHeader("Content-Type", "application/json");
-    const char* headerNames[] = { "date" };
-    http.collectHeaders(headerNames, sizeof(headerNames)/sizeof(headerNames[0]));
     int httpCodeA = http.POST("{\"username\":\""+user+"\",\"password\":\""+pass+"\"}");
 
     if(httpCodeA > 0) {
@@ -154,28 +161,6 @@ void fetchData(){
         deserializeJson(doc, payload);
         userId = doc["d"]["roles"][0]["userId"].as<String>();
         Serial.printf("User ID: %s\n",userId);
-        String indate = http.header("date");
-        char s_month[5];
-        int day, year;
-        const String months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-
-        if (indate.length() > 0) {
-          int n = indate.length();
-          char date_array[n+1];
-          strcpy(date_array, indate.c_str());
-          sscanf(date_array, "%*s %d %s %d %*s", &day, s_month, &year);
-          int month = 0;
-          for(int i=0; i<12; i++) {
-            if(months[i] == String(s_month)) {
-              month = i+1;
-              break;
-            }
-          }
-
-          char output[11];
-          sprintf(output, "%02d/%02d/%04d", day, month, year);
-          date = (String)output;
-        }
       } else {
         Serial.printf("%i\n",httpCodeA);
       }
