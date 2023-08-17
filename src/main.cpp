@@ -48,7 +48,10 @@ void setup(){
 
   spr.fillSprite(TFT_BLACK);
   spr.setTextColor(TFT_WHITE);
-  spr.drawCentreString("Loading...",(WIDTH/2),(HEIGHT/2),4);
+  spr.setFreeFont(FF24);
+  spr.drawCentreString("CLASSPILL",(WIDTH/2),(HEIGHT/2-40),GFXFF);
+  spr.setFreeFont(FF22);
+  spr.drawCentreString("Loading...",(WIDTH/2),(HEIGHT/2+20),GFXFF);
   lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
 
   fetchData();
@@ -69,32 +72,32 @@ void loop(){
     // Top Bar
     spr.setTextColor(TFT_WHITE);
     spr.setFreeFont(FF22);
-    spr.drawString((String)userData["reportName"].as<const char*>(),10,10,4);
-    spr.drawRightString((String)period[0].as<const char*>()+" - "+(String)userData["date"].as<const char*>(),(WIDTH-10),10,4);
+    spr.drawString((String)userData["reportName"].as<const char*>(),10,10,GFXFF);
+    spr.drawRightString((String)period[0].as<const char*>()+" - "+(String)userData["date"].as<const char*>(),(WIDTH-10),10,GFXFF);
 
     // Side Bar
     spr.setTextColor(0x2C3C);
     spr.setFreeFont(FF22);
-    spr.drawString("Network",10,60,4);
+    spr.drawString("Network",10,60,GFXFF);
     spr.setTextColor(TFT_WHITE);
-    spr.setFreeFont(FF17);
-    if(WiFi.isConnected()) spr.drawString(WiFi.SSID(),10,85,4);
-    else spr.drawString("No WiFi",10,85,4);
+    spr.setFreeFont(FF18);
+    if(WiFi.isConnected()) spr.drawString(WiFi.SSID(),10,85,GFXFF);
+    else spr.drawString("No WiFi",10,85,GFXFF);
 
     spr.setTextColor(0x2C3C);
     spr.setFreeFont(FF22);
-    spr.drawString("IP Address",10,120,4);
+    spr.drawString("IP Address",10,120,GFXFF);
     spr.setTextColor(TFT_WHITE);
-    spr.setFreeFont(FF17);
-    if(WiFi.isConnected()) spr.drawString(WiFi.localIP().toString(),10,145,4);
-    else spr.drawString("No IP",10,145,4);
+    spr.setFreeFont(FF18);
+    if(WiFi.isConnected()) spr.drawString(WiFi.localIP().toString(),10,145,GFXFF);
+    else spr.drawString("No IP",10,145,GFXFF);
 
     spr.setTextColor(0x2C3C);
     spr.setFreeFont(FF22);
-    spr.drawString("User Code",10,180,4);
+    spr.drawString("User Code",10,180,GFXFF);
     spr.setTextColor(TFT_WHITE);
-    spr.setFreeFont(FF17);
-    spr.drawString((String)userData["displayCode"].as<const char*>(),10,205,4);
+    spr.setFreeFont(FF18);
+    spr.drawString((String)userData["displayCode"].as<const char*>(),10,205,GFXFF);
 
     // Main Content
     spr.setTextColor(0x2C3C);
