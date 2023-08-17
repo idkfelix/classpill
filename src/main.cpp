@@ -8,6 +8,7 @@
 #include "rm67162.h"
 #include <TFT_eSPI.h>
 #include "ani.h"
+#include "Free_Fonts.h" 
 
 #define WIDTH  536
 #define HEIGHT 240
@@ -61,7 +62,7 @@ void loop(){
     JsonVariant period = periods[i];
     spr.fillSprite(TFT_BLACK);
 
-    spr.pushImage((WIDTH-112),70,102,160,ani[n]);
+    spr.pushImage(55,65,102,160,ani[n]);
 
     spr.drawRoundRect(10,10,(WIDTH-20),40,5,TFT_WHITE);
     spr.drawRoundRect(10,60,150,(HEIGHT-70),5,TFT_WHITE);
@@ -74,19 +75,26 @@ void loop(){
     // else spr.drawString("No WiFi",20,20,4);
 
     spr.setTextColor(TFT_WHITE);
-    spr.drawCentreString((String)period[0].as<const char*>(),(WIDTH/2),(HEIGHT/2-40),4);
-    spr.drawCentreString((String)period[2].as<const char*>(),(WIDTH/2),(HEIGHT/2-15),4);
-    spr.drawCentreString((String)period[4].as<const char*>(),(WIDTH/2),(HEIGHT/2+15),4);
-    spr.drawCentreString((String)period[3].as<const char*>(),(WIDTH/2),(HEIGHT/2+40),4);
+    spr.setFreeFont(FF23);
+    spr.drawString((String)period[2].as<const char*>(),180,70,GFXFF);
+    spr.drawRightString((String)period[1].as<const char*>(),(WIDTH-20),70,GFXFF);
+    spr.setFreeFont(FF22);
+    spr.drawString((String)period[0].as<const char*>(),180,110,GFXFF);
 
     lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
 
-    delay(150);
-    if(digitalRead(0) == HIGH){
+    delay(75);
+    n++;
+    if(n==45) n=0;
+    spr.pushImage(55,65,102,160,ani[n]);
+    lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
+    delay(75);
+
+    if(digitalRead(21) == HIGH){
       if(i==0) i=(periods.size()-1);
       else i--;
     }
-    if(digitalRead(21) == HIGH){
+    if(digitalRead(0) == HIGH){
       if(i==(periods.size()-1)) i=0;
       else i++;
     }
@@ -246,7 +254,7 @@ void fetchData(){
     deserializeJson(docPeriods, eepromStream);
     periods = docPeriods.as<JsonArray>();
 
-    EepromStream eepromStreamA(0, 2048);
+    EepromStream eepromStreamA(2048, 2048);
     deserializeJson(userData, eepromStreamA);
   }
 }
