@@ -34,6 +34,7 @@ TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite spr = TFT_eSprite(&tft);
 
 void fetchData();
+void drawHome(int i);
 
 void setup(){
   Serial.begin(115200);
@@ -61,74 +62,75 @@ void setup(){
 }
 
 int i = 0;
-// int n = 0;
 void loop(){
+  drawHome(i);
+
+  delay(200);
+  if(digitalRead(21) == LOW){
+    if(i==0) i=(periods.size()-1);
+    else i--;
+  }
+  if(digitalRead(0) == LOW){
+    if(i==(periods.size()-1)) i=0;
+    else i++;
+  }
+}
+
+void drawHome(int i){
+  JsonVariant period = periods[i];
+  spr.fillSprite(TFT_BLACK);
+
+  // Boxes
+  spr.drawRoundRect(0,0,(WIDTH),40,5,TFT_WHITE);
+  spr.drawRoundRect(0,50,150,(HEIGHT-50),5,TFT_WHITE);
+  spr.drawRoundRect(160,50,(WIDTH-160),(HEIGHT-50),5,TFT_WHITE);
+
+  // Top Bar
+  spr.setTextColor(TFT_WHITE);
+  spr.setFreeFont(FF22);
+  spr.drawString((String)userData["reportName"].as<const char*>(),10,10,GFXFF);
+  spr.drawRightString((String)period[0].as<const char*>()+" - "+(String)userData["date"].as<const char*>(),(WIDTH-10),10,GFXFF);
+
+  // Side Bar
+  spr.setTextColor(ACCENT);
+  spr.setFreeFont(FF22);
+  spr.drawString("Network",10,60,GFXFF);
+  spr.setTextColor(TFT_WHITE);
+  spr.setFreeFont(FF18);
+  if(WiFi.isConnected()) spr.drawString(WiFi.SSID(),10,85,GFXFF);
+  else spr.drawString("No WiFi",10,85,GFXFF);
+
+  spr.setTextColor(ACCENT);
+  spr.setFreeFont(FF22);
+  spr.drawString("IP Address",10,120,GFXFF);
+  spr.setTextColor(TFT_WHITE);
+  spr.setFreeFont(FF18);
+  if(WiFi.isConnected()) spr.drawString(WiFi.localIP().toString(),10,145,GFXFF);
+  else spr.drawString("No IP",10,145,GFXFF);
+
+  spr.setTextColor(ACCENT);
+  spr.setFreeFont(FF22);
+  spr.drawString("User Code",10,180,GFXFF);
+  spr.setTextColor(TFT_WHITE);
+  spr.setFreeFont(FF18);
+  spr.drawString((String)userData["displayCode"].as<const char*>(),10,205,GFXFF);
+
+  // Main Content
+  spr.setTextColor(ACCENT);
+  spr.setFreeFont(FF24);
   if(periods.size() >0){
-    JsonVariant period = periods[i];
-    spr.fillSprite(TFT_BLACK);
-
-    // Boxes
-    spr.drawRoundRect(0,0,(WIDTH),40,5,TFT_WHITE);
-    spr.drawRoundRect(0,50,150,(HEIGHT-50),5,TFT_WHITE);
-    spr.drawRoundRect(160,50,(WIDTH-160),(HEIGHT-50),5,TFT_WHITE);
-
-    // Top Bar
-    spr.setTextColor(TFT_WHITE);
-    spr.setFreeFont(FF22);
-    spr.drawString((String)userData["reportName"].as<const char*>(),10,10,GFXFF);
-    spr.drawRightString((String)period[0].as<const char*>()+" - "+(String)userData["date"].as<const char*>(),(WIDTH-10),10,GFXFF);
-
-    // Side Bar
-    spr.setTextColor(ACCENT);
-    spr.setFreeFont(FF22);
-    spr.drawString("Network",10,60,GFXFF);
-    spr.setTextColor(TFT_WHITE);
-    spr.setFreeFont(FF18);
-    if(WiFi.isConnected()) spr.drawString(WiFi.SSID(),10,85,GFXFF);
-    else spr.drawString("No WiFi",10,85,GFXFF);
-
-    spr.setTextColor(ACCENT);
-    spr.setFreeFont(FF22);
-    spr.drawString("IP Address",10,120,GFXFF);
-    spr.setTextColor(TFT_WHITE);
-    spr.setFreeFont(FF18);
-    if(WiFi.isConnected()) spr.drawString(WiFi.localIP().toString(),10,145,GFXFF);
-    else spr.drawString("No IP",10,145,GFXFF);
-
-    spr.setTextColor(ACCENT);
-    spr.setFreeFont(FF22);
-    spr.drawString("User Code",10,180,GFXFF);
-    spr.setTextColor(TFT_WHITE);
-    spr.setFreeFont(FF18);
-    spr.drawString((String)userData["displayCode"].as<const char*>(),10,205,GFXFF);
-
-    // Main Content
-    spr.setTextColor(ACCENT);
-    spr.setFreeFont(FF24);
     spr.drawString((String)period[2].as<const char*>(),180,70,GFXFF);
     spr.setTextColor(TFT_WHITE);
     spr.drawRightString((String)period[1].as<const char*>(),(WIDTH-20),70,GFXFF);
     spr.setFreeFont(FF23);
     spr.drawString("Room: "+(String)period[3].as<const char*>(),180,130,GFXFF);
     spr.drawString("Teacher: "+(String)period[4].as<const char*>(),180,180,GFXFF);
-
-    lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
-
-    delay(150);
-
-    if(digitalRead(21) == HIGH){
-      if(i==0) i=(periods.size()-1);
-      else i--;
-    }
-    if(digitalRead(0) == HIGH){
-      if(i==(periods.size()-1)) i=0;
-      else i++;
-    }
   } else {
     spr.fillSprite(TFT_BLACK);
-    spr.drawCentreString("No Periods!",(WIDTH/2),(HEIGHT/2),4);
-    lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
+    spr.drawCentreString("No Periods!",180,70,4);
   }
+
+  lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
 }
 
 void fetchData(){
