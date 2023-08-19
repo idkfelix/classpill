@@ -1,20 +1,24 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
-#include <HTTPClient.h>
+#include "ESPAsyncWebServer.h"
+#include "time.h"
+
 #include <EEPROM.h>
 #include <StreamUtils.h>
-#include "rm67162.h"
+
 #include <TFT_eSPI.h>
+#include "rm67162.h"
 #include "Free_Fonts.h" 
-#include "time.h"
+
+#include <esp_sleep.h>
 
 #define WIDTH  536
 #define HEIGHT 240
 
 #define ACCENT 0x2C3C
-// #define ACCENT 0x4682
 
 String subDomain = "mullauna-vic";
 String user = "cou0008";
@@ -33,14 +37,20 @@ DynamicJsonDocument userData(2048);
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite spr = TFT_eSprite(&tft);
 
+AsyncWebServer server(80);
+
 void fetchData();
 void drawHome(int i);
+void drawLoad();
 
 void setup(){
   Serial.begin(115200);
+  
   pinMode(0,INPUT_PULLUP);
   pinMode(21,INPUT_PULLUP);
+
   EEPROM.begin(4096);
+
   rm67162_init();
   lcd_setRotation(1);
   spr.createSprite(WIDTH, HEIGHT);
@@ -50,6 +60,83 @@ void setup(){
     wifiMulti.addAP(networks[i][0].c_str(),networks[i][1].c_str());
   } 
 
+  drawLoad();
+  fetchData();
+
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0,0);
+
+  // server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+  //   String html = "";
+  //   html += "<form method='POST' action='/submit'>";
+  //   html += "Username:<br><input type='text' name='user' value='"+user+"'><br>";
+  //   html += "Password:<br><input type='text' name='pass' value='"+pass+"'><br>";
+  //   html += "<input type='submit' value='Submit'>";
+  //   html += "</form>";
+  //   request->send(200, "text/html", html);
+  // });
+
+  // server.on("/submit", HTTP_POST, [](AsyncWebServerRequest *request){
+  //   if(request->hasParam("user", true) && request->hasParam("pass", true)) {
+  //       user = request->getParam("user", true)->value();
+  //       pass = request->getParam("pass", true)->value();
+  //   }
+  //   request->send(200, "text/plain", "User and password updated");
+  // });
+
+  // server.begin();
+}
+
+int i = 0;
+int n = 0;
+void loop(){
+  drawHome(i);
+
+  delay(150);
+
+  if(digitalRead(0) == LOW){
+    int time = 0;
+    while(digitalRead(0) == LOW){
+      delay(10);
+      time++;
+    }
+    if(time>300) {
+      esp_deep_sleep_start();
+    } else if(time>100){
+      spr.fillSprite(TFT_BLACK);
+      lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
+      esp_light_sleep_start();
+    } else {
+      if(i==(periods.size()-1)) i=0;
+      else i++;
+      n=0;
+    }
+  }
+
+  if(digitalRead(21) == LOW){
+    int time = 0;
+    while(digitalRead(21) == LOW){
+      delay(10);
+      time++;
+    }
+    if(time>100){
+      drawLoad();
+      fetchData();
+    } else {
+      if(i==0) i=(periods.size()-1);
+      else i--;
+      n=0;
+    }
+  }
+
+  n++;
+  if(n==(60000/200)){
+    spr.fillSprite(TFT_BLACK);
+    lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
+    esp_light_sleep_start();
+  }
+}
+
+void drawLoad(){
   spr.fillSprite(TFT_BLACK);
   spr.setTextColor(TFT_WHITE);
   spr.setFreeFont(FF24);
@@ -57,23 +144,6 @@ void setup(){
   spr.setFreeFont(FF22);
   spr.drawCentreString("Loading...",(WIDTH/2),(HEIGHT/2+20),GFXFF);
   lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
-
-  fetchData();
-}
-
-int i = 0;
-void loop(){
-  drawHome(i);
-
-  delay(200);
-  if(digitalRead(21) == LOW){
-    if(i==0) i=(periods.size()-1);
-    else i--;
-  }
-  if(digitalRead(0) == LOW){
-    if(i==(periods.size()-1)) i=0;
-    else i++;
-  }
 }
 
 void drawHome(int i){
@@ -126,8 +196,7 @@ void drawHome(int i){
     spr.drawString("Room: "+(String)period[3].as<const char*>(),180,130,GFXFF);
     spr.drawString("Teacher: "+(String)period[4].as<const char*>(),180,180,GFXFF);
   } else {
-    spr.fillSprite(TFT_BLACK);
-    spr.drawCentreString("No Periods!",180,70,4);
+    spr.drawString("No Periods!",180,70,GFXFF);
   }
 
   lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
@@ -144,12 +213,13 @@ void fetchData(){
   http.setReuse(true);
 
   if(wifiMulti.run() == WL_CONNECTED) {
-    configTime(36000,36000,"au.pool.ntp.org");
+    configTime(36000,0,"au.pool.ntp.org");
     struct tm timeinfo;
     char timeString[50];
     getLocalTime(&timeinfo);
     strftime(timeString, sizeof(timeString), "%d/%m/%Y", &timeinfo);
     date = timeString;
+    date = "18/08/2023";
     
     // Auth with Compass API
     http.begin("https://"+subDomain+".compass.education/services/admin.svc/AuthenticateUserCredentials");
