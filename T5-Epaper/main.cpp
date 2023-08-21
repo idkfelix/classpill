@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
@@ -8,16 +9,21 @@
 #include <EEPROM.h>
 #include <StreamUtils.h>
 
-#include <TFT_eSPI.h>
-#include "rm67162.h"
-#include "Free_Fonts.h" 
+#include <GxEPD.h>
+#include <GxDEPG0213BN/GxDEPG0213BN.h>
+#include <GxIO/GxIO_SPI/GxIO_SPI.h>
+#include <GxIO/GxIO.h> 
 
-#include <esp_sleep.h>
+#define LILYGO_T5_V213
+#include "boards.h"
 
-#define WIDTH  536
-#define HEIGHT 240
+#include <Fonts/FreeMonoBold9pt7b.h>
 
-#define ACCENT 0x2C3C
+#define WIDTH  122
+#define HEIGHT 250
+
+GxIO_Class io(SPI, EPD_CS, EPD_DC, EPD_RSET);
+GxEPD_Class display(io, EPD_RSET, EPD_BUSY);
 
 String subDomain = "mullauna-vic";
 String user = "cou0008";
@@ -33,150 +39,52 @@ JsonArray periods;
 DynamicJsonDocument docPeriods(2048);
 DynamicJsonDocument userData(2048);
 
-TFT_eSPI tft = TFT_eSPI();
-TFT_eSprite spr = TFT_eSprite(&tft);
-
 void fetchData();
-void drawHome(int i);
-void drawLoad();
 
-void setup(){
-  Serial.begin(115200);
-  
-  pinMode(0,INPUT_PULLUP);
-  pinMode(21,INPUT_PULLUP);
+void setup(void)
+{
+    Serial.begin(115200);
+    EEPROM.begin(4096);
 
-  EEPROM.begin(4096);
+    SPI.begin(EPD_SCLK, EPD_MISO, EPD_MOSI);
+    display.init(115200);
 
-  rm67162_init();
-  lcd_setRotation(1);
-  spr.createSprite(WIDTH, HEIGHT);
-  spr.setSwapBytes(1);
+    for(int i = 0; i< (sizeof networks / sizeof networks[0]); i++){
+        wifiMulti.addAP(networks[i][0].c_str(),networks[i][1].c_str());
+    } 
 
-  for(int i = 0; i< (sizeof networks / sizeof networks[0]); i++){
-    wifiMulti.addAP(networks[i][0].c_str(),networks[i][1].c_str());
-  } 
+    display.setRotation(4);
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    display.setFont(&FreeMonoBold9pt7b);
+    display.setCursor(5,(HEIGHT/2));
+    display.print("Loading...");
+    display.update();
 
-  drawLoad();
-  fetchData();
-
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0,0);
+    fetchData();
 }
 
-int i = 0;
-int n = 0;
 void loop(){
-  drawHome(i);
-
-  delay(150);
-
-  if(digitalRead(0) == LOW){
-    int time = 0;
-    while(digitalRead(0) == LOW){
-      delay(10);
-      time++;
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(5,15);
+    display.print(userData["date"].as<const char*>());
+    
+    display.setTextColor(GxEPD_WHITE);
+    for(int i = 0; i< periods.size(); i++){
+        JsonVariant period = periods[i];
+        display.fillRoundRect(0,(HEIGHT/5*i+(25-i*5)),(WIDTH),(HEIGHT/5-10),10,GxEPD_BLACK);
+        display.setCursor(5,((HEIGHT/5*i+15+(periods.size()*5-i*5))));
+        display.print(period[2].as<const char*>());
+        display.print(" ");
+        display.print(period[3].as<const char*>());
+        display.setCursor(5,((HEIGHT/5*i+35+(periods.size()*5-i*5))));
+        display.print(period[0].as<const char*>());
+        display.print(" ");
+        display.print(period[1].as<const char*>());
     }
-    if(time>300) {
-      esp_deep_sleep_start();
-    } else if(time>100){
-      spr.fillSprite(TFT_BLACK);
-      lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
-      esp_light_sleep_start();
-    } else {
-      if(i==(periods.size()-1)) i=0;
-      else i++;
-      n=0;
-    }
-  }
 
-  if(digitalRead(21) == LOW){
-    int time = 0;
-    while(digitalRead(21) == LOW){
-      delay(10);
-      time++;
-    }
-    if(time>100){
-      drawLoad();
-      fetchData();
-    } else {
-      if(i==0) i=(periods.size()-1);
-      else i--;
-      n=0;
-    }
-  }
-
-  n++;
-  if(n==(60000/200)){
-    spr.fillSprite(TFT_BLACK);
-    lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
-    esp_light_sleep_start();
-  }
-}
-
-void drawLoad(){
-  spr.fillSprite(TFT_BLACK);
-  spr.setTextColor(TFT_WHITE);
-  spr.setFreeFont(FF24);
-  spr.drawCentreString("CLASSPILL",(WIDTH/2),(HEIGHT/2-40),GFXFF);
-  spr.setFreeFont(FF22);
-  spr.drawCentreString("Loading...",(WIDTH/2),(HEIGHT/2+20),GFXFF);
-  lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
-}
-
-void drawHome(int i){
-  JsonVariant period = periods[i];
-  spr.fillSprite(TFT_BLACK);
-
-  // Boxes
-  spr.drawRoundRect(0,0,(WIDTH),40,5,TFT_WHITE);
-  spr.drawRoundRect(0,50,150,(HEIGHT-50),5,TFT_WHITE);
-  spr.drawRoundRect(160,50,(WIDTH-160),(HEIGHT-50),5,TFT_WHITE);
-
-  // Top Bar
-  spr.setTextColor(TFT_WHITE);
-  spr.setFreeFont(FF22);
-  spr.drawString((String)userData["reportName"].as<const char*>(),10,10,GFXFF);
-  spr.drawRightString((String)period[0].as<const char*>()+" - "+(String)userData["date"].as<const char*>(),(WIDTH-10),10,GFXFF);
-
-  // Side Bar
-  spr.setTextColor(ACCENT);
-  spr.setFreeFont(FF22);
-  spr.drawString("Network",10,60,GFXFF);
-  spr.setTextColor(TFT_WHITE);
-  spr.setFreeFont(FF18);
-  if(WiFi.isConnected()) spr.drawString(WiFi.SSID(),10,85,GFXFF);
-  else spr.drawString("No WiFi",10,85,GFXFF);
-
-  spr.setTextColor(ACCENT);
-  spr.setFreeFont(FF22);
-  spr.drawString("IP Address",10,120,GFXFF);
-  spr.setTextColor(TFT_WHITE);
-  spr.setFreeFont(FF18);
-  if(WiFi.isConnected()) spr.drawString(WiFi.localIP().toString(),10,145,GFXFF);
-  else spr.drawString("No IP",10,145,GFXFF);
-
-  spr.setTextColor(ACCENT);
-  spr.setFreeFont(FF22);
-  spr.drawString("User Code",10,180,GFXFF);
-  spr.setTextColor(TFT_WHITE);
-  spr.setFreeFont(FF18);
-  spr.drawString((String)userData["displayCode"].as<const char*>(),10,205,GFXFF);
-
-  // Main Content
-  spr.setTextColor(ACCENT);
-  spr.setFreeFont(FF24);
-  if(periods.size() >0){
-    spr.drawString((String)period[2].as<const char*>(),180,70,GFXFF);
-    spr.setTextColor(TFT_WHITE);
-    spr.drawRightString((String)period[1].as<const char*>(),(WIDTH-20),70,GFXFF);
-    spr.setFreeFont(FF23);
-    spr.drawString("Room: "+(String)period[3].as<const char*>(),180,130,GFXFF);
-    spr.drawString("Teacher: "+(String)period[4].as<const char*>(),180,180,GFXFF);
-  } else {
-    spr.drawString("No Periods!",180,70,GFXFF);
-  }
-
-  lcd_PushColors(0, 0, WIDTH, HEIGHT, (uint16_t *)spr.getPointer());
+    display.update();
+    while(1){}
 }
 
 void fetchData(){
