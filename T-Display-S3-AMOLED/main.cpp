@@ -19,12 +19,12 @@
 
 #define ACCENT 0x2C3C
 
-String subDomain = "mullauna-vic";
-String user = "cou0008";
-String pass = "Lion.8664";
+String subDomain = "";
+String user = "";
+String pass = "";
 String networks[][2] = {
-  {"Felix","idkidkidk"},
-  {"DeathStar","coffeemarantz"}
+  {"",""},
+  {"",""}
 };
 
 WiFiMulti wifiMulti;
