@@ -25,12 +25,12 @@
 GxIO_Class io(SPI, EPD_CS, EPD_DC, EPD_RSET);
 GxEPD_Class display(io, EPD_RSET, EPD_BUSY);
 
-String subDomain = "mullauna-vic";
-String user = "cou0008";
-String pass = "Lion.8664";
+String subDomain = "";
+String user = "";
+String pass = "";
 String networks[][2] = {
-  {"Felix","idkidkidk"},
-  {"DeathStar","coffeemarantz"}
+  {"",""},
+  {"",""}
 };
 
 WiFiMulti wifiMulti;
